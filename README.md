@@ -1,5 +1,9 @@
 # NIZKP for Discrete Logarithms
 
+Application of the Fiat-Shamir transform to the interactive proof of discrete logarithm.
+
+Also includes an implementation of a signature scheme based on this approach.
+
 ## Interactive Proof
 
 To prove that B = A^x (mod p),
