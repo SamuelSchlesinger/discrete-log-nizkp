@@ -1,18 +1,35 @@
+//! # Non-Interactive Proofs of Discrete Logarithm
+//!
+//! and an accompanying signature scheme.
+//!
+//! NB: THIS IS NOT SECURE. This is merely an academic exercise at the moment.
+//! The numbers are too small of width, the parameters aren't right, there are almost certainly timing attacks due to the conditionals.
+
 use mod_exp::mod_exp;
 
 use rand::{distributions::Standard, rngs::OsRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
+/// A zero-knowledge proof that there exists x such that b = a^x (mod p).
 pub struct DiscreteLogPf {
+    /// Prime number
     p: u128,
+    /// Number between 0 and p - 1
     a: u128,
+    /// Number between 0 and p - 1
     b: u128,
+    /// Arbitrary 32 byte nonce
     nonce: [u8; 32],
+    /// Some fun values :)
     hs: Box<[u128]>,
+    /// Some more fun values :)
     ss: Box<[u128]>,
 }
+// TODO ^ store hs, ss as Box<[(u128, u128)]> so there is no incosistent case where len()
+// differs
 
 impl DiscreteLogPf {
+    /// Prove that a^x = b (mod p) such that the verifier can be sure with probability 1/2^m.
     pub fn prove(a: u128, b: u128, p: u128, x: u128, nonce: [u8; 32], m: usize) -> Self {
         let mut rng = OsRng;
         let rs: Box<[u128]> = (0..m).map(|_| rng.gen_range(0..p - 1)).collect();
@@ -35,6 +52,7 @@ impl DiscreteLogPf {
         }
     }
 
+    /// Verify that there exists x such that a^x = b (mod p) with whatever probability of error.
     pub fn verify(&self) -> bool {
         if self.hs.len() != self.ss.len() {
             return false;
@@ -51,6 +69,10 @@ impl DiscreteLogPf {
                 == ((self.hs[i] * mod_exp(self.b, if bools[i] { 1 } else { 0 }, self.p)) % self.p)
         })
     }
+
+    pub fn security(&self) -> usize {
+        self.hs.len()
+    }
 }
 
 #[test]
@@ -65,12 +87,14 @@ fn test_signature_scheme() {
     assert!(signature.verify(b"uhh hello?"))
 }
 
+/// Public identity for an individual. Totally safe to reveal.
 pub struct PublicKey {
     a: u128,
     b: u128,
     p: u128,
 }
 
+/// Secret identity for an individual. Not safe to reveal.
 pub struct PrivateKey {
     pubkey: PublicKey,
     x: u128,
@@ -92,12 +116,20 @@ impl PrivateKey {
     }
 }
 
+/// Signature containing a proof of knowledge of discrete log.
 pub struct Signature {
     pf: DiscreteLogPf,
 }
 
 impl Signature {
+    /// Verify the signature.
     pub fn verify(&self, content: &[u8]) -> bool {
         blake3::hash(content) == self.pf.nonce && self.pf.verify()
+    }
+
+    /// Compute a natural number n such that the probability of the prover, in one go, being able to construct
+    /// a verifying but false proof is 1/2^n.
+    pub fn security(&self) -> usize {
+        self.pf.hs.len()
     }
 }
